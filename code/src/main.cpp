@@ -1,36 +1,81 @@
+
 #include <Arduino.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+#include "TFT.h"
 
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+  Serial.printf("Listing directory: %s\n", dirname);
 
-
-struct Button {
-	const uint8_t PIN;
-	uint32_t numberKeyPresses;
-  uint32_t lastPress;
-	bool pressed;
-};
-
-Button button1 = {18, 0, false};
-
-void IRAM_ATTR isr() {
-  if(button1.lastPress + 250 > millis()) {
+  File root = fs.open(dirname);
+  if(!root){
+    Serial.println("Failed to open directory");
+    return;
+  }
+  if(!root.isDirectory()){
+    Serial.println("Not a directory");
     return;
   }
 
+  File file = root.openNextFile();
+  while(file){
+    if(file.isDirectory()){
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+      if(levels){
+        listDir(fs, file.name(), levels -1);
+      }
+    } else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("  SIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
+}
+bool setupSD(uint8_t pin)
+{
+  if(!SD.begin(25)){
+    Serial.println("Card Mount Failed");
+    return false;
+  }
+  uint8_t cardType = SD.cardType();
 
-	button1.numberKeyPresses++;
-  button1.lastPress = millis();
-	button1.pressed = true;
+  if(cardType == CARD_NONE){
+    Serial.println("No SD card attached");
+    return false;
+  }
+
+  Serial.print("SD Card Type: ");
+  if(cardType == CARD_MMC){
+    Serial.println("MMC");
+  } else if(cardType == CARD_SD){
+    Serial.println("SDSC");
+  } else if(cardType == CARD_SDHC){
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
+
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("SD Card Size: %lluMB\n", cardSize);
+  listDir(SD, "/", 0);
+  Serial.println("");
+  return true;
 }
 
-void setup() {
-	Serial.begin(9600);
-	pinMode(button1.PIN, INPUT_PULLDOWN);
-	attachInterrupt(button1.PIN, isr, FALLING);
+
+void setup(){
+  Serial.begin(115200);
+  while(!setupSD(25)){
+    Serial.println("SD initialization failed!");
+    delay(500);
+  }
+  Serial.println("SD initialization done.");
 }
 
-void loop() {
-	if (button1.pressed) {
-		Serial.printf("Button has been pressed %u times\n", button1.numberKeyPresses);
-		button1.pressed = false;
-	}
+void loop(){
+
 }
