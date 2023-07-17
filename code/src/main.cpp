@@ -3,7 +3,7 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
-#include "TFT.h"
+#include <Arduino_GFX_Library.h>
 
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
   Serial.printf("Listing directory: %s\n", dirname);
@@ -67,15 +67,46 @@ bool setupSD(uint8_t pin)
 }
 
 
+Arduino_DataBus* bus = new Arduino_HWSPI(17, 16);
+Arduino_GFX* gfx = new Arduino_ST7735(bus, 5, 0, false, 128,128, 1, 1, 0, 0, false);
+
+char bmp[128*128*2];
+
 void setup(){
+
   Serial.begin(115200);
   while(!setupSD(25)){
     Serial.println("SD initialization failed!");
     delay(500);
   }
   Serial.println("SD initialization done.");
+
+  auto file = SD.open("/BRUH.bmp");
+  if(!file.available()){
+    Serial.println("File not available!");
+  }
+
+  
+
+  auto res = file.readBytes(bmp, sizeof(bmp));
+  if(res != sizeof(bmp)){
+    Serial.println("File read failed!");
+  };
+
+  while (!gfx->begin())
+  {
+    Serial.println("gfx->begin() failed!");
+  }
+
 }
 
 void loop(){
-
+  gfx->draw16bitBeRGBBitmap(0,0, reinterpret_cast<uint16_t*>(bmp), 128, 128);
+  delay(5000);
+  gfx->fillScreen(RED);
+  delay(100);
+  gfx->fillScreen(GREEN);
+  delay(100);
+  gfx->fillScreen(BLUE);
+  delay(100);
 }
